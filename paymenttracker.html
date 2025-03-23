@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Class Fund Collection</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { background-color: #111b21; color: white; font-family: "Arial", sans-serif; text-align: center; margin: 0; }
+        h1, h2 { color: #25d366; }
+        .container { width: 90%; max-width: 450px; margin: auto; background: #202c33; padding: 20px; border-radius: 10px; }
+        button { background-color: #25d366; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer; }
+        .back-btn { font-size: 14px; padding: 8px 15px; margin-bottom: 15px; }
+        .hidden { display: none; }
+        table { width: 90%; margin: auto; border-collapse: collapse; background: #2a2f32; margin-top: 20px; }
+        th, td { padding: 10px; border-bottom: 1px solid #555; text-align: center; }
+        th { background: #25d366; color: white; }
+        .paid { background: #008000; color: white; font-weight: bold; }
+        .pending { background: #ff3b30; color: white; font-weight: bold; }
+        input { padding: 10px; width: 90%; border: none; border-radius: 5px; margin: 5px; }
+        .summary { margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+    <div id="home">
+        <h1>Welcome everyone</h1>
+        <div class="container">
+            <button onclick="showLogin()">Admin Login</button>
+            <button onclick="showUser()">User View</button>
+        </div>
+    </div>
+
+    <!-- Admin Login -->
+    <div id="login-panel" class="hidden">
+        <div class="container">
+            <h2>Admin Login</h2>
+            <input type="text" id="admin-username" placeholder="Username"><br>
+            <input type="password" id="admin-password" placeholder="Password"><br>
+            <button onclick="validateLogin()">Login</button>
+            <p id="login-error" style="color: red;"></p>
+        </div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="admin-panel" class="hidden">
+        <h2>Admin Dashboard</h2>
+        <button onclick="goHome()">Logout</button>
+        <div class="container">
+            <input type="text" id="student-name" placeholder="Student Name" required>
+            <input type="number" id="amount" placeholder="Amount" required>
+            <button onclick="addStudent()">Add Student</button>
+        </div>
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Amount</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="student-list"></tbody>
+        </table>
+        <div class="summary">
+            <p><strong>Total:</strong> ₹<span id="total-amount">0</span></p>
+            <p><strong>Received:</strong> ₹<span id="received-amount">0</span></p>
+            <p><strong>Remaining:</strong> ₹<span id="remaining-amount">0</span></p>
+        </div>
+        <button onclick="exportToExcel()">Export to Excel</button>
+    </div>
+
+    <!-- User View -->
+    <div id="user-panel" class="hidden">
+        <h2>Student Payment Status</h2>
+        <button class="back-btn" onclick="goHome()">Back</button>
+        <table>
+            <thead>
+                <tr><th>Name</th><th>Status</th></tr>
+            </thead>
+            <tbody id="user-student-list"></tbody>
+        </table>
+        <div class="summary">
+            <p><strong>Total:</strong> ₹<span id="user-total-amount">0</span></p>
+            <p><strong>Received:</strong> ₹<span id="user-received-amount">0</span></p>
+            <p><strong>Remaining:</strong> ₹<span id="user-remaining-amount">0</span></p>
+            <p><strong>Students Pending Payment:</strong> <span id="pending-student-count">0</span></p>
+        </div>
+    </div>
+
+    <script>
+        function showLogin() { document.getElementById("home").classList.add("hidden"); document.getElementById("login-panel").classList.remove("hidden"); }
+        function validateLogin() {
+            let username = document.getElementById("admin-username").value;
+            let password = document.getElementById("admin-password").value;
+            if (username === "admin" && password === "password123") {
+                document.getElementById("login-panel").classList.add("hidden");
+                document.getElementById("admin-panel").classList.remove("hidden");
+                loadStudents();
+            } else {
+                document.getElementById("login-error").textContent = "Invalid Username or Password!";
+            }
+        }
+        function showUser() { document.getElementById("home").classList.add("hidden"); document.getElementById("user-panel").classList.remove("hidden"); updateUserView(); }
+        function goHome() { location.reload(); }
+
+        function addStudent() {
+            let name = document.getElementById("student-name").value;
+            let amount = document.getElementById("amount").value;
+            let students = JSON.parse(localStorage.getItem("students")) || [];
+            students.push({ name, amount: parseInt(amount), paid: false });
+            localStorage.setItem("students", JSON.stringify(students));
+            loadStudents();
+        }
+
+        function loadStudents() {
+            let students = JSON.parse(localStorage.getItem("students")) || [];
+            let studentList = document.getElementById("student-list");
+            studentList.innerHTML = "";
+
+            let totalAmount = 0, receivedAmount = 0;
+            students.forEach((student, index) => {
+                totalAmount += student.amount;
+                if (student.paid) receivedAmount += student.amount;
+
+                studentList.innerHTML += `
+                    <tr>
+                        <td>${student.name}</td>
+                        <td>₹${student.amount}</td>
+                        <td class="${student.paid ? 'paid' : 'pending'}">${student.paid ? 'Paid' : 'Pending'}</td>
+                        <td><button onclick="togglePayment(${index})">Toggle</button></td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById("total-amount").textContent = totalAmount;
+            document.getElementById("received-amount").textContent = receivedAmount;
+            document.getElementById("remaining-amount").textContent = totalAmount - receivedAmount;
+            updateUserView();
+        }
+
+        function togglePayment(index) {
+            let students = JSON.parse(localStorage.getItem("students")) || [];
+            students[index].paid = !students[index].paid;
+            localStorage.setItem("students", JSON.stringify(students));
+            loadStudents();
+        }
+
+        function updateUserView() {
+            let students = JSON.parse(localStorage.getItem("students")) || [];
+            let userList = document.getElementById("user-student-list");
+            userList.innerHTML = "";
+
+            let pendingCount = 0, totalAmount = 0, receivedAmount = 0;
+            students.forEach(student => {
+                totalAmount += student.amount;
+                if (!student.paid) pendingCount++;
+                if (student.paid) receivedAmount += student.amount;
+
+                userList.innerHTML += `<tr><td>${student.name}</td><td class="${student.paid ? 'paid' : 'pending'}">${student.paid ? 'Paid' : 'Pending'}</td></tr>`;
+            });
+
+           document.getElementById("user-total-amount").textContent = totalAmount;
+            document.getElementById("user-received-amount").textContent = receivedAmount;
+            document.getElementById("user-remaining-amount").textContent = totalAmount - receivedAmount;
+            document.getElementById("pending-student-count").textContent = pendingCount;
+        }
+    </script>
+
+</body>
+</html>
